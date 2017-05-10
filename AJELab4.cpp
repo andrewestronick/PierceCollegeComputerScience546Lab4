@@ -65,6 +65,8 @@ int main(int argc, char *argv[])
 		coordinates.emplace_back(record{ ID, latitude, longitude, 0.0, (latitude * PI_180), (longitude * PI_180) });
 	}
 
+	fin.close();
+
 	size_t size = coordinates.size();
 
 	// std::sort(coordinates.begin(), coordinates.end(), [](record &a, record &b) { return a.latitude < b.latitude; });
@@ -72,15 +74,23 @@ int main(int argc, char *argv[])
 	unsigned *ID = new unsigned[size];
 	float *latitude = new float[size];
 	float *longitude = new float[size];
+	float *dlatitude = new float[size];
+	float *dlongitude = new float[size];
+	float *distance = new float[size];
+	unsigned *ID_top5 = new unsigned[5];
+	float *latitude_top5 = new float[5];
+	float *longitude_top5 = new float[5];
+	float *distance_top5 =  new float[5];
 
-	/*
 	for (unsigned i = 0; i < size; ++i)
 	{
 		ID[i] = coordinates[i].ID;
 		latitude[i] = coordinates[i].latitude;
 		longitude[i] = coordinates[i].longitude;
+		dlatitude[i] = coordinates[i].dlatitude; 
+		dlongitude[i] = coordinates[i].dlongitude;
+
 	}
-	*/
 
 	while (true)
 	{
@@ -100,13 +110,14 @@ int main(int argc, char *argv[])
 			continue;
 		}
 
-		for (record &r : coordinates)
-		{
-			dlat1 = latitude1 * PI_180;
-			dlong1 = longitude1 * PI_180;
+		dlat1 = latitude1 * PI_180;
+		dlong1 = longitude1 * PI_180;
 
-			dlat2 = r.dlatitude;
-			dlong2 = r.dlongitude;
+
+		for (unsigned i = 0; i < size; ++i)
+		{
+			dlat2 = dlatitude[i];
+			dlong2 = dlongitude[i];
 
 			dLong = longitude1 - dlong2;
 			dLat = latitude1 - dlat2;
@@ -114,13 +125,31 @@ int main(int argc, char *argv[])
 			aHarv = pow(sin(dLat / 2.0), 2.0) + cos(dlat1) * cos(dlat2) * pow(sin(dLong / 2), 2);
 			cHarv = 2 * atan2(sqrt(aHarv), sqrt(1.0 - aHarv));
 		
-			r.distance = earth * cHarv;
+			distance[i] = earth * cHarv;
 		}
 
-		std::sort(coordinates.begin(), coordinates.end(), [](record &a, record &b) { return a.distance < b.distance; });
 
-		for (unsigned i = 0; i < 5; ++i)
-			std::cout << "Location " << coordinates[i].ID  << " at " << coordinates[i].latitude << ", " << coordinates[i].longitude << " is " << coordinates[i].distance << " {units} away. \n";
+		ID_top5[0] = ID[0];
+		latitude_top5[0] = latitude[0];
+		longitude_top5[0] = longitude[0];
+		distance_top5[0] = distance[0];
+
+
+		for (unsigned i = 1; i < size; ++i)
+		{
+			if (distance[i] < distance_top5[0])
+			{
+				ID_top5[0] = ID[0];
+				latitude_top5[0] = latitude[i];
+				longitude_top5[0] = longitude[i];
+				distance_top5[0] = distance[i];
+			}
+		}
+
+		// std::sort(coordinates.begin(), coordinates.end(), [](record &a, record &b) { return a.distance < b.distance; });
+
+		for (unsigned i = 0; i < 1; ++i)
+			std::cout << "Location " << ID_top5[i] << " at " << latitude_top5[i] << ", " << longitude_top5[i] << " is " << distance_top5[i] << " Miles away. \n";
 	}
 
 	std::cout << "Ending execution. \n";
@@ -128,6 +157,12 @@ int main(int argc, char *argv[])
 	delete ID;
 	delete latitude;
 	delete longitude;
+	delete dlatitude;
+	delete dlongitude;
+	delete distance;
+	delete ID_top5;
+	delete distance_top5;
+
 }
 
 
