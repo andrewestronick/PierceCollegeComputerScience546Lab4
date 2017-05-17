@@ -9,7 +9,7 @@
 #include<sstream>
 #include<algorithm>
 #include <cmath>
-
+#include "windows.h"
 
 struct record
 {
@@ -42,6 +42,8 @@ int main(int argc, char *argv[])
 	float dLat;
 	float aHarv;
 	float cHarv;
+	FILETIME creationTime, exitTime, kernelTime, userTime;
+	LPFILETIME creation = &creationTime, exit = &exitTime, kernel = &kernelTime, user = &userTime;
 
 	if (!fin.is_open())
 	{
@@ -110,6 +112,8 @@ int main(int argc, char *argv[])
 			continue;
 		}
 
+		std::chrono::high_resolution_clock::time_point t1 = std::chrono::high_resolution_clock::now();
+
 		dlat1 = latitude1 * PI_180;
 		dlong1 = longitude1 * PI_180;
 
@@ -148,8 +152,12 @@ int main(int argc, char *argv[])
 
 		// std::sort(coordinates.begin(), coordinates.end(), [](record &a, record &b) { return a.distance < b.distance; });
 
+
+
 		for (unsigned i = 0; i < 1; ++i)
 			std::cout << "Location " << ID_top5[i] << " at " << latitude_top5[i] << ", " << longitude_top5[i] << " is " << distance_top5[i] << " Miles away. \n";
+		
+		std::cout << "search took xx.xxxxxx seconds of system CPU time and yy.yyyyyy seconds of user CPU time.\n";
 	}
 
 	std::cout << "Ending execution. \n";
@@ -249,10 +257,11 @@ GetLocalTime(&loct);
 cout << "The   ending local time is:" << loct.wHour << ':' << loct.wMinute << ':' << loct.wSecond << '.' << loct.wMilliseconds << endl;
 double fEndTime = loct.wHour * 3600 + loct.wMinute * 60 + loct.wSecond + (loct.wMilliseconds / 1000.0);
 u2 = getTime64(user);
-double workUserTime = (u2 - u1) * 100.0 / 1000000000.0;
+double workUserTime = (u2 - u1) * 100.0 / 1000000000.0; // = usertime
+
 cout << "Process user time:" << workUserTime << " (" << u2 - u1 << ')' << endl;
 
-double workTime = fEndTime - fStartTime;
+double workTime = fEndTime - fStartTime; // = system CPU time
 cout << "Elapsed clock time:" <<  workTime << endl;
 cout << "CPU busy percentage:" << (workUserTime / workTime) * 100 << endl;
 cout << primeCount << " prime numbers were calculated and the last one was:" << lastPrime << endl;
