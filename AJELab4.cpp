@@ -2,6 +2,7 @@
 // Lab Assignment 4 – Array Processing With Intel AVX Instructions 
 
 #define _USE_MATH_DEFINES
+#define _WIN32_WINNT 0x0501
 
 #include<iostream>
 #include<vector>
@@ -10,6 +11,8 @@
 #include<algorithm>
 #include <cmath>
 #include "windows.h"
+
+ULONGLONG getTime64(LPFILETIME a);
 
 struct record
 {
@@ -29,8 +32,8 @@ int main(int argc, char *argv[])
 		exit(-1);
 	}
 
-	const float PI_180 = 3.14159 / 180.0;
-	const float earth = 3963.19;
+	const float PI_180 = 0.017453277f;
+	const float earth = 3963.19f;
 	std::vector<record> coordinates;
 	std::ifstream fin(argv[1]);
 	std::string line;
@@ -43,12 +46,17 @@ int main(int argc, char *argv[])
 	float aHarv;
 	float cHarv;
 	FILETIME creationTime, exitTime, kernelTime, userTime;
-	LPFILETIME creation = &creationTime, exit = &exitTime, kernel = &kernelTime, user = &userTime;
+	LPFILETIME creation = &creationTime, exitT = &exitTime, kernel = &kernelTime, user = &userTime;
+	ULONGLONG c1, c2, e1, e2, k1, k2, u1, u2;
+	HANDLE myProcess = GetCurrentProcess();
+	BOOL gotTime1, gotTime2;
+	DWORD failReason;
+	SYSTEMTIME loct;
 
 	if (!fin.is_open())
 	{
 		std::cout << "Cannot open file " << argv[1] << std::endl;
-		exit(-1);
+		return(-1);
 	}
 
 	while (getline(fin, line))
@@ -70,8 +78,6 @@ int main(int argc, char *argv[])
 	fin.close();
 
 	size_t size = coordinates.size();
-
-	// std::sort(coordinates.begin(), coordinates.end(), [](record &a, record &b) { return a.latitude < b.latitude; });
 
 	unsigned *ID = new unsigned[size];
 	float *latitude = new float[size];
@@ -112,7 +118,19 @@ int main(int argc, char *argv[])
 			continue;
 		}
 
-		std::chrono::high_resolution_clock::time_point t1 = std::chrono::high_resolution_clock::now();
+		gotTime1 = GetProcessTimes(myProcess, creation, exitT, kernel, user);
+		if (!gotTime1) {
+			failReason = GetLastError();
+			std::cout << "GetProcessTimes failed, Failure reason:" << failReason << std::endl;
+			return -1;
+		}
+		c1 = getTime64(creation);
+		e1 = getTime64(exitT);
+		k1 = getTime64(kernel);
+		u1 = getTime64(user);
+
+		GetLocalTime(&loct);
+		double fStartTime = loct.wHour * 3600 + loct.wMinute * 60 + loct.wSecond + (loct.wMilliseconds / 1000.0);
 
 		dlat1 = latitude1 * PI_180;
 		dlong1 = longitude1 * PI_180;
@@ -152,12 +170,23 @@ int main(int argc, char *argv[])
 
 		// std::sort(coordinates.begin(), coordinates.end(), [](record &a, record &b) { return a.distance < b.distance; });
 
+		gotTime2 = GetProcessTimes(myProcess, creation, exitT, kernel, user);
+		if (!gotTime2) {
+			failReason = GetLastError();
+			std::cout << "GetProcessTimes failed, Failure reason:" << failReason << std::endl;
+			return -1;
+		}
 
+		GetLocalTime(&loct);
+		double fEndTime = loct.wHour * 3600 + loct.wMinute * 60 + loct.wSecond + (loct.wMilliseconds / 1000.0);
+		u2 = getTime64(user);
+		double workUserTime = (u2 - u1) * 100.0 / 1000000000.0; // = usertime
+		double workTime = fEndTime - fStartTime; // = system CPU time
 
 		for (unsigned i = 0; i < 1; ++i)
 			std::cout << "Location " << ID_top5[i] << " at " << latitude_top5[i] << ", " << longitude_top5[i] << " is " << distance_top5[i] << " Miles away. \n";
 		
-		std::cout << "search took xx.xxxxxx seconds of system CPU time and yy.yyyyyy seconds of user CPU time.\n";
+		std::cout << "search took " << workTime << " seconds of system CPU time and "<< (u2 - u1) << " seconds of user CPU time.\n";
 	}
 
 	std::cout << "Ending execution. \n";
@@ -171,6 +200,13 @@ int main(int argc, char *argv[])
 	delete ID_top5;
 	delete distance_top5;
 
+}
+
+ULONGLONG getTime64(LPFILETIME a) {
+	ULARGE_INTEGER work;
+	work.HighPart = a->dwHighDateTime;
+	work.LowPart = a->dwLowDateTime;
+	return work.QuadPart;
 }
 
 
