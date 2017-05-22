@@ -26,12 +26,6 @@ struct record
 
 int main(int argc, char *argv[])
 {
-	if (argc != 2)
-	{
-		std::cout << "Usage: " << argv[0] << " {input file}\n";
-		exit(-1);
-	}
-
 	const float PI_180 = 0.017453277f;
 	const float earth = 3963.19f;
 	std::vector<record> coordinates;
@@ -52,11 +46,18 @@ int main(int argc, char *argv[])
 	BOOL gotTime1, gotTime2;
 	DWORD failReason;
 	SYSTEMTIME loct;
+	double fStartTime, fEndTime, workTime, workUserTime;
+
+	if (argc != 2)
+	{
+		std::cout << "Usage: " << argv[0] << " {input file}\n";
+		exit(-1);
+	}
 
 	if (!fin.is_open())
 	{
 		std::cout << "Cannot open file " << argv[1] << std::endl;
-		return(-1);
+		exit(-1);
 	}
 
 	while (getline(fin, line))
@@ -78,6 +79,12 @@ int main(int argc, char *argv[])
 	fin.close();
 
 	size_t size = coordinates.size();
+
+	if (size < 5)
+	{
+		std::cout << "Error data file has less than five usables entires.\n";
+		exit(-1);
+	}
 
 	unsigned *ID = new unsigned[size];
 	float *latitude = new float[size];
@@ -122,15 +129,14 @@ int main(int argc, char *argv[])
 		if (!gotTime1) {
 			failReason = GetLastError();
 			std::cout << "GetProcessTimes failed, Failure reason:" << failReason << std::endl;
-			return -1;
+			exit(-1);
 		}
 		c1 = getTime64(creation);
 		e1 = getTime64(exitT);
 		k1 = getTime64(kernel);
 		u1 = getTime64(user);
-
 		GetLocalTime(&loct);
-		double fStartTime = loct.wHour * 3600 + loct.wMinute * 60 + loct.wSecond + (loct.wMilliseconds / 1000.0);
+		fStartTime = loct.wHour * 3600 + loct.wMinute * 60 + loct.wSecond + (loct.wMilliseconds / 1000.0);
 
 		dlat1 = latitude1 * PI_180;
 		dlong1 = longitude1 * PI_180;
@@ -144,27 +150,37 @@ int main(int argc, char *argv[])
 			dLong = longitude1 - dlong2;
 			dLat = latitude1 - dlat2;
 
-			aHarv = pow(sin(dLat / 2.0), 2.0) + cos(dlat1) * cos(dlat2) * pow(sin(dLong / 2), 2);
-			cHarv = 2 * atan2(sqrt(aHarv), sqrt(1.0 - aHarv));
+			aHarv = (float) (pow(sin(dLat / 2.0), 2.0) + cos(dlat1) * cos(dlat2) * pow(sin(dLong / 2), 2));
+			cHarv = (float) (2 * atan2(sqrt(aHarv), sqrt(1.0 - aHarv)));
 		
 			distance[i] = earth * cHarv;
 		}
 
+		for (unsigned i = 0; i < 5; ++i)
+			distance_top5[i] = FLT_MAX;
 
-		ID_top5[0] = ID[0];
-		latitude_top5[0] = latitude[0];
-		longitude_top5[0] = longitude[0];
-		distance_top5[0] = distance[0];
-
-
-		for (unsigned i = 1; i < size; ++i)
+		for (unsigned i = 0; i < size; ++i)
 		{
-			if (distance[i] < distance_top5[0])
+			if (distance[i] < distance_top5[4]) // is value less than largest top 5
 			{
-				ID_top5[0] = ID[0];
-				latitude_top5[0] = latitude[i];
-				longitude_top5[0] = longitude[i];
-				distance_top5[0] = distance[i];
+				for (unsigned j = 0; j < 5; ++j)
+				{
+					if (distance[i] < distance_top5[j]) // find where to insert value
+					{
+						for (int k = 4, insert = ((j == 0) ? 1 : j); k > insert; --k)
+						{
+							ID_top5[k] = ID_top5[k -1];
+							latitude_top5[k] = latitude_top5[k - 1];
+							longitude_top5[k] = longitude_top5[k - 1];
+							distance_top5[k] = distance_top5[k - 1];
+						}
+						ID_top5[j] = ID[i];
+						latitude_top5[j] = latitude[i];
+						longitude_top5[j] = longitude[i];
+						distance_top5[j] = distance[i];
+						break;
+					}
+				}
 			}
 		}
 
@@ -174,19 +190,19 @@ int main(int argc, char *argv[])
 		if (!gotTime2) {
 			failReason = GetLastError();
 			std::cout << "GetProcessTimes failed, Failure reason:" << failReason << std::endl;
-			return -1;
+			exit(-1);
 		}
 
 		GetLocalTime(&loct);
-		double fEndTime = loct.wHour * 3600 + loct.wMinute * 60 + loct.wSecond + (loct.wMilliseconds / 1000.0);
+		fEndTime = loct.wHour * 3600 + loct.wMinute * 60 + loct.wSecond + (loct.wMilliseconds / 1000.0);
 		u2 = getTime64(user);
-		double workUserTime = (u2 - u1) * 100.0 / 1000000000.0; // = usertime
-		double workTime = fEndTime - fStartTime; // = system CPU time
+		workUserTime = (u2 - u1) * 100.0 / 1000000000.0; // = usertime
+		workTime = fEndTime - fStartTime; // = system CPU time
 
-		for (unsigned i = 0; i < 1; ++i)
+		for (unsigned i = 0; i < 5; ++i)
 			std::cout << "Location " << ID_top5[i] << " at " << latitude_top5[i] << ", " << longitude_top5[i] << " is " << distance_top5[i] << " Miles away. \n";
 		
-		std::cout << "search took " << workTime << " seconds of system CPU time and "<< (u2 - u1) << " seconds of user CPU time.\n";
+		std::cout << "search took " << workTime << " seconds of system CPU time and "<< workUserTime << " seconds of user CPU time.\n\n\n";
 	}
 
 	std::cout << "Ending execution. \n";
@@ -199,7 +215,6 @@ int main(int argc, char *argv[])
 	delete distance;
 	delete ID_top5;
 	delete distance_top5;
-
 }
 
 ULONGLONG getTime64(LPFILETIME a) {
@@ -208,107 +223,3 @@ ULONGLONG getTime64(LPFILETIME a) {
 	work.LowPart = a->dwLowDateTime;
 	return work.QuadPart;
 }
-
-
-/*
-
-// LabExercise1.cpp
-
-// This is a lab exercise to measure CPU time used by an algorithm.
-// The user enters a prime number limit and the program calculates all the prime numbers
-// up to that limit.
-
-// This program uses several Windows-defined structures and data types, including:
-// ULONGLONG
-// FILETIME and LPFILETIME
-// HANDLE
-// SYSTEMTIME
-// BOOL
-// DWORD
-// ULARGE_INTEGER
-
-// Windows functions used include:
-// GetCurrentProcess
-// GetProcessTimes
-// GetLastError
-// GetLocalTime
-
-#define _WIN32_WINNT 0x0501
-#include <iostream>
-#include "windows.h"
-using namespace std;
-ULONGLONG getTime64(LPFILETIME a);
-
-int main(int argc, char* argv[])
-{
-FILETIME creationTime, exitTime, kernelTime, userTime;
-LPFILETIME creation = &creationTime, exit = &exitTime, kernel = &kernelTime, user = &userTime;
-ULONGLONG c1, c2, e1, e2, k1, k2, u1, u2;
-HANDLE myProcess = GetCurrentProcess();
-BOOL gotTime1, gotTime2;
-DWORD failReason;
-SYSTEMTIME loct;
-ULONGLONG primeLimit = 0, primeCount = 0, lastPrime;
-
-do {
-cout << "Enter prime number limit:";
-cin >> primeLimit;
-cout << endl;
-} while (primeLimit < 1);
-
-gotTime1 = GetProcessTimes(myProcess, creation, exit, kernel, user);
-if (!gotTime1) {
-failReason = GetLastError();
-cout << "GetProcessTimes failed, Failure reason:" << failReason << endl;
-return 0;
-}
-c1 = getTime64(creation);
-e1 = getTime64(exit);
-k1 = getTime64(kernel);
-u1 = getTime64(user);
-
-// do something long...
-GetLocalTime(&loct);
-cout << "The starting local time is:" << loct.wHour << ':' << loct.wMinute << ':' << loct.wSecond << '.' << loct.wMilliseconds << endl;
-double fStartTime = loct.wHour * 3600 + loct.wMinute * 60 + loct.wSecond + (loct.wMilliseconds / 1000.0);
-// simple-minded prime number calculation
-for (int i = 2; i <= primeLimit; i++) {
-bool isPrime = true;
-for (int j = 2; j < i; j++)
-if ((i % j) == 0) isPrime = false;
-if (isPrime) {
-// cout << i << " is a prime number." << endl;
-primeCount++;
-lastPrime = i;
-}
-}
-
-gotTime2 = GetProcessTimes(myProcess, creation, exit, kernel, user);
-if (!gotTime2) {
-failReason = GetLastError();
-cout << "GetProcessTimes failed, Failure reason:" << failReason << endl;
-return 0;
-}
-GetLocalTime(&loct);
-cout << "The   ending local time is:" << loct.wHour << ':' << loct.wMinute << ':' << loct.wSecond << '.' << loct.wMilliseconds << endl;
-double fEndTime = loct.wHour * 3600 + loct.wMinute * 60 + loct.wSecond + (loct.wMilliseconds / 1000.0);
-u2 = getTime64(user);
-double workUserTime = (u2 - u1) * 100.0 / 1000000000.0; // = usertime
-
-cout << "Process user time:" << workUserTime << " (" << u2 - u1 << ')' << endl;
-
-double workTime = fEndTime - fStartTime; // = system CPU time
-cout << "Elapsed clock time:" <<  workTime << endl;
-cout << "CPU busy percentage:" << (workUserTime / workTime) * 100 << endl;
-cout << primeCount << " prime numbers were calculated and the last one was:" << lastPrime << endl;
-return 0;
-}
-
-// convert a FILETIME structure to a 64-bit integer
-ULONGLONG getTime64(LPFILETIME a) {
-ULARGE_INTEGER work;
-work.HighPart = a->dwHighDateTime;
-work.LowPart = a->dwLowDateTime;
-return work.QuadPart;
-}
-*/
