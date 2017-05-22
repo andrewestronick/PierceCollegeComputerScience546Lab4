@@ -26,7 +26,7 @@ struct record
 
 int main(int argc, char *argv[])
 {
-	const float PI_180 = 0.017453277f;
+	const float PI_180 = (float) (M_PI / 180);
 	const float earth = 3963.19f;
 	std::vector<record> coordinates;
 	std::ifstream fin(argv[1]);
@@ -41,7 +41,7 @@ int main(int argc, char *argv[])
 	float cHarv;
 	FILETIME creationTime, exitTime, kernelTime, userTime;
 	LPFILETIME creation = &creationTime, exitT = &exitTime, kernel = &kernelTime, user = &userTime;
-	ULONGLONG c1, c2, e1, e2, k1, k2, u1, u2;
+	ULONGLONG u1, u2;
 	HANDLE myProcess = GetCurrentProcess();
 	BOOL gotTime1, gotTime2;
 	DWORD failReason;
@@ -131,9 +131,6 @@ int main(int argc, char *argv[])
 			std::cout << "GetProcessTimes failed, Failure reason:" << failReason << std::endl;
 			exit(-1);
 		}
-		c1 = getTime64(creation);
-		e1 = getTime64(exitT);
-		k1 = getTime64(kernel);
 		u1 = getTime64(user);
 		GetLocalTime(&loct);
 		fStartTime = loct.wHour * 3600 + loct.wMinute * 60 + loct.wSecond + (loct.wMilliseconds / 1000.0);
@@ -147,8 +144,8 @@ int main(int argc, char *argv[])
 			dlat2 = dlatitude[i];
 			dlong2 = dlongitude[i];
 
-			dLong = longitude1 - dlong2;
-			dLat = latitude1 - dlat2;
+			dLat = PI_180 * (latitude1 - latitude[i]);
+			dLong = PI_180 * (longitude1 - longitude[i]);
 
 			aHarv = (float) (pow(sin(dLat / 2.0), 2.0) + cos(dlat1) * cos(dlat2) * pow(sin(dLong / 2), 2));
 			cHarv = (float) (2 * atan2(sqrt(aHarv), sqrt(1.0 - aHarv)));
@@ -167,7 +164,7 @@ int main(int argc, char *argv[])
 				{
 					if (distance[i] < distance_top5[j]) // find where to insert value
 					{
-						for (int k = 4, insert = ((j == 0) ? 1 : j); k > insert; --k)
+						for (int k = 4, insert = ((j == 0) ? 1 : j); k >= insert; --k)
 						{
 							ID_top5[k] = ID_top5[k -1];
 							latitude_top5[k] = latitude_top5[k - 1];
@@ -183,8 +180,6 @@ int main(int argc, char *argv[])
 				}
 			}
 		}
-
-		// std::sort(coordinates.begin(), coordinates.end(), [](record &a, record &b) { return a.distance < b.distance; });
 
 		gotTime2 = GetProcessTimes(myProcess, creation, exitT, kernel, user);
 		if (!gotTime2) {
