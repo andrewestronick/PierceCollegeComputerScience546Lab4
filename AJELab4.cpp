@@ -135,9 +135,31 @@ int main(int argc, char *argv[])
 		GetLocalTime(&loct);
 		fStartTime = loct.wHour * 3600 + loct.wMinute * 60 + loct.wSecond + (loct.wMilliseconds / 1000.0);
 
-		dlat1 = latitude1 * PI_180;
-		dlong1 = longitude1 * PI_180;
+		// dlat1 = latitude1 * PI_180;
+		// dlong1 = longitude1 * PI_180;
 
+		alignas(32) static float coord[2];
+		alignas(32) static float multi[2];
+		// alignas(32) static float result[2];
+
+		coord[0] = latitude1;
+		coord[1] = longitude1;
+
+		multi[0] = PI_180;
+		multi[1] = PI_180;
+
+
+		__asm
+		{
+			movaps xmm1, [coord]
+			movaps xmm2, [multi]
+			mulps xmm1 ,xmm2
+			movaps [coord], xmm1
+
+		}
+
+		dlat1 = coord[0];
+		dlong1 = coord[1];
 
 		for (unsigned i = 0; i < size; ++i)
 		{
